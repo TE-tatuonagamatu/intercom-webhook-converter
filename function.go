@@ -12,10 +12,12 @@ import (
 	strip "github.com/grokify/html-strip-tags-go"
 )
 
+const slackWebHookURL = "SLACK_WEBHOOK_URL"
+
 func sendWebhook(message map[string]interface{}) error {
-	url, ok := os.LookupEnv("SLACK_WEBHOOK_URL")
+	url, ok := os.LookupEnv(slackWebHookURL)
 	if !ok {
-		return fmt.Errorf("SLACK_WEBHOOK_URL is not defined in environment")
+		return fmt.Errorf("%s is not defined in environment", slackWebHookURL)
 	}
 	bs, err := json.Marshal(message)
 	if err != nil {
