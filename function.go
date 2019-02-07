@@ -1,19 +1,27 @@
-// Package p contains an HTTP Cloud Function.
-package p
+// Package webhookconverter contains an HTTP Cloud Function.
+package webhookconverter
 
 import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"strings"
+
+	strip "github.com/grokify/html-strip-tags-go"
 )
 
-const url = "https://hooks.slack.com/services/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"
-
 func sendWebhook(message map[string]interface{}) error {
-	bs, _ := json.Marshal(message)
-	_, err := http.Post(url, "application/json", strings.NewReader(string(bs)))
+	url, ok := os.LookupEnv("SLACK_WEBHOOK_URL")
+	if !ok {
+		return fmt.Errorf("SLACK_WEBHOOK_URL is not defined in environment")
+	}
+	bs, err := json.Marshal(message)
+	if err != nil {
+		return err
+	}
+	_, err = http.Post(url, "application/json", strings.NewReader(string(bs))) /* #nosec G107 */
 	if err != nil {
 		return err
 	}
@@ -39,15 +47,14 @@ func convertConversationUserReplied(o map[string]interface{}) (map[string]interf
 
 	fmt.Printf("convertConversationUserReplied: body: %d: %s\n", len(partsParts), messageBody)
 
-	msg := messageBody
+	msg := ""
 	for n, r := range partsParts {
 		p := r.(map[string]interface{})
-		msg += "\n"
-		for i := 0; i < n; i++ {
-			msg += "    "
+		if len(msg) != 0 {
+			msg += "\n"
 		}
 		fmt.Printf("convertConversationUserReplied: %d: %s\n", n, p["body"].(string))
-		msg += p["body"].(string)
+		msg += strip.StripTags(p["body"].(string))
 	}
 
 	rval := make(map[string]interface{})
@@ -77,6 +84,9 @@ func convertToSlack(bb []byte) (map[string]interface{}, error) {
 
 	fmt.Printf("convertToSlack: %s\n", string(bb))
 
+	if o["type"] == nil {
+		return nil, fmt.Errorf("type not found")
+	}
 	t := o["type"].(string)
 	switch t {
 	case "notification_event":
@@ -119,4 +129,3 @@ func WebHookConverter(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 }
-
