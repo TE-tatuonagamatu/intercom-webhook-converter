@@ -40,15 +40,15 @@ func convertConversationUserReplied(o map[string]interface{}) (map[string]interf
 	}
 	item := data["item"].(map[string]interface{})
 
-	if item["conversation_message"] == nil {
-		return nil, fmt.Errorf("data.item.conversation_message is not found")
-	}
-	message := item["conversation_message"].(map[string]interface{})
+	//if item["conversation_message"] == nil {
+	//	return nil, fmt.Errorf("data.item.conversation_message is not found")
+	//}
+	//message := item["conversation_message"].(map[string]interface{})
 
-	if message["body"] == nil {
-		return nil, fmt.Errorf("data.item.conversation_message.body is not found")
-	}
-	messageBody := message["body"].(string)
+	//if message["body"] == nil {
+	//	return nil, fmt.Errorf("data.item.conversation_message.body is not found")
+	//}
+	//messageBody := message["body"].(string)
 
 	if item["conversation_parts"] == nil {
 		return nil, fmt.Errorf("data.item.conversation_parts is not found")
