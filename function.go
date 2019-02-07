@@ -29,31 +29,49 @@ func sendWebhook(message map[string]interface{}) error {
 	return nil
 }
 
-/*
-func debugJSONObject(o map[string]interface{}, m string) {
-	for k, v := range o {
-		fmt.Printf("jsonObject[%s]: %s: %v\n", m, k, v)
-	}
-}
-*/
-
 func convertConversationUserReplied(o map[string]interface{}) (map[string]interface{}, error) {
+	if o["data"] == nil {
+		return nil, fmt.Errorf("data is not found")
+	}
 	data := o["data"].(map[string]interface{})
+
+	if data["item"] == nil {
+		return nil, fmt.Errorf("data.item is not found")
+	}
 	item := data["item"].(map[string]interface{})
+
+	if item["conversation_message"] == nil {
+		return nil, fmt.Errorf("data.item.conversation_message is not found")
+	}
 	message := item["conversation_message"].(map[string]interface{})
+
+	if message["body"] == nil {
+		return nil, fmt.Errorf("data.item.conversation_message.body is not found")
+	}
 	messageBody := message["body"].(string)
+
+	if item["conversation_parts"] == nil {
+		return nil, fmt.Errorf("data.item.conversation_parts is not found")
+	}
 	parts := item["conversation_parts"].(map[string]interface{})
+
+	if parts["conversation_parts"] == nil {
+		return nil, fmt.Errorf("data.item.conversation_parts.conversation_parts is not found")
+	}
 	partsParts := parts["conversation_parts"].([]interface{})
 
-	fmt.Printf("convertConversationUserReplied: body: %d: %s\n", len(partsParts), messageBody)
-
 	msg := ""
-	for n, r := range partsParts {
+	for _, r := range partsParts {
+		if r == nil {
+			continue
+		}
 		p := r.(map[string]interface{})
+		if p["body"] == nil {
+			continue
+		}
 		if len(msg) != 0 {
 			msg += "\n"
 		}
-		fmt.Printf("convertConversationUserReplied: %d: %s\n", n, p["body"].(string))
 		msg += strip.StripTags(p["body"].(string))
 	}
 
@@ -65,9 +83,11 @@ func convertConversationUserReplied(o map[string]interface{}) (map[string]interf
 }
 
 func convertNotificationEventToSlack(o map[string]interface{}) (map[string]interface{}, error) {
+	if o["topic"] == nil {
+		return nil, fmt.Errorf("topic is not found")
+	}
 	topic := o["topic"].(string)
 
-	fmt.Printf("convertNotificationEventToSlack: topic: %s\n", topic)
 	switch topic {
 	case "conversation.user.replied":
 		return convertConversationUserReplied(o)
@@ -82,8 +102,6 @@ func convertToSlack(bb []byte) (map[string]interface{}, error) {
 		return nil, err
 	}
 
-	fmt.Printf("convertToSlack: %s\n", string(bb))
-
 	if o["type"] == nil {
 		return nil, fmt.Errorf("type not found")
 	}
@@ -96,35 +114,33 @@ func convertToSlack(bb []byte) (map[string]interface{}, error) {
 	return nil, fmt.Errorf("unsupported type: %s", t)
 }
 
+func writeError(w http.ResponseWriter, code int, msg string) {
+	w.WriteHeader(code)
+	fmt.Println(msg)
+	fmt.Fprintf(w, msg)
+}
+
 // WebHookConverter convert the received data for slack.
 func WebHookConverter(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("WebHookConverter is called\n")
-
 	bb, err := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
 	if err != nil {
-		w.WriteHeader(http.StatusNoContent)
-		fmt.Printf("failed to read body: %v\n", err)
-		fmt.Fprintf(w, "failed to read body: %v", err)
+		writeError(w, http.StatusNoContent, fmt.Sprintf("failed to read body: %v", err))
 		return
 	}
 
-	fmt.Printf("body: %s\n", string(bb))
+	fmt.Printf("WebHookConverter: %s\n", string(bb))
 
 	msg, err := convertToSlack(bb)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Printf("failed to convert to slack: %v\n", err)
-		fmt.Fprintf(w, "failed to convert to slack: %v", err)
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("failed to convert to slack: %v: %s", err, string(bb)))
 		return
 	}
 
 	fmt.Printf("slack: %s\n", msg)
 
 	if err := sendWebhook(msg); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Printf("failed to send webhook: %v\n", err)
-		fmt.Fprintf(w, "failed to send webhook: %v", err)
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to send webhook: %v\n", err))
 		return
 	}
 	w.WriteHeader(http.StatusOK)
